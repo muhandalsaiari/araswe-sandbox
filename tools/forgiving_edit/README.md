@@ -19,3 +19,16 @@ Test: `python3 -m unittest discover -s tools/forgiving_edit/tests`
 
 Install into an agent: copy `skills/edit` to `agents/<name>/skills/edit` and list `skills/edit` under
 `skills:` in its `agent.yaml`.
+
+## What the harness edit_file already forgives (read 2026-11-04)
+
+The harness `edit_file` (swegemma/edit.py -> adk_eval_core/editing/edit.py `apply_replacement`) tries, in
+order: exact; flexible (per line, trailing spaces ignored, then leading and trailing spaces ignored); regex;
+unescaped (one or two layers of JSON escapes: `\"`, `\\`, `\uXXXX`, and in the full layer also `\n`, `\t`,
+`\r`, `\/`, each followed by exact then flexible). On failure it says only "old_string not found".
+
+Not covered by it, and covered here: a backslash right before a real line break (not a JSON escape, so
+its regex leaves it), `\'`, blank lines that differ, and on failure the closest real block with line
+numbers. Every edit counted as failed in the replay was already refused by that tool, so the replay's
+rescues are on top of what it does. What the skill does not repeat: indentation-relaxed matching (no
+unrescued edit in the 80 screen_01 runs was a whitespace-only miss).
