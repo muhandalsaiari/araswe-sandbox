@@ -12,6 +12,8 @@ the forgiving rule is tried against the file as it stood at that moment:
   1 quotes       \\" -> "  and  \\' -> '
   2 + bs_newline also drop a backslash right before a line break
   3 + literal_n  also turn a two-character backslash-n into a real line break (and \\t into a tab)
+  4 blank_lines  rule (a): the cleaned non-blank lines appear in the file in order as one run, blank
+                 lines and trailing spaces ignored; the run is replaced by the cleaned new_string
 
 Each step is cumulative and applied to old_string and new_string alike. An edit is RESCUED at the
 first step whose cleaned old_string occurs exactly once in the file; AMBIGUOUS if it occurs more than
@@ -38,6 +40,33 @@ def clean(text, upto):
     if upto >= 3:
         text = text.replace("\\n", "\n").replace("\\t", "\t")
     return text
+
+
+def line_runs(o, text, gap=0):
+    """Spans (first, last file line) where o's non-blank lines appear in order, comparing with trailing
+    spaces dropped and skipping blank file lines. gap = how many NON-blank file lines may be skipped in
+    total; gap > 0 is a diagnostic only (applying it would delete the skipped lines)."""
+    want = [x.rstrip() for x in o.split("\n") if x.strip()]
+    have = text.split("\n")
+    if not want:
+        return []
+    spans = []
+    for i, line in enumerate(have):
+        if line.rstrip() != want[0]:
+            continue
+        j, k, skipped = i + 1, 1, 0
+        while k < len(want) and j < len(have):
+            h = have[j].rstrip()
+            if h == want[k]:
+                k += 1
+            elif h.strip() and skipped < gap:
+                skipped += 1
+            elif h.strip():
+                break
+            j += 1
+        if k == len(want):
+            spans.append((i, j - 1))
+    return spans
 
 
 def closeness(o, text):
@@ -130,10 +159,23 @@ def replay(trace_path, snap, out, examples, tag):
                     files[fp] = text.replace(o, clean(new, i), 1)
                 elif n > 1:
                     verdict = "ambiguous"
+            if not verdict:   # rule (a): same non-blank lines, in order, blank lines ignored
+                o, nw = clean(old, len(STEPS)), clean(new, len(STEPS))
+                spans = line_runs(o, text, gap=0)
+                if len(spans) == 1:
+                    verdict = "rescued_blank_lines"
+                    lines = text.split("\n")
+                    s, e = spans[0]
+                    files[fp] = "\n".join(lines[:s] + nw.split("\n") + lines[e + 1:])
+                elif len(spans) > 1:
+                    verdict = "ambiguous"
             verdict = verdict or "not_rescued"
             out[verdict][k] += 1
             if verdict == "not_rescued":
-                out["why_not"][closeness(clean(old, len(STEPS)), text)] += 1
+                o = clean(old, len(STEPS))
+                out["why_not"][closeness(o, text)] += 1
+                g = len(line_runs(o, text, gap=3))
+                out["with_gaps"]["unique" if g == 1 else "several" if g > 1 else "none"] += 1
                 if len(examples) < 3:
                     examples.append((tag, fp, old[:200]))
 
@@ -162,18 +204,20 @@ def main(argv):
             replay(os.path.join(tdir, f), Snapshot(sp), out, examples, tag)
     total = sum(out["failed"].values())
     print("failed edit_file calls: %d  (by kind: %s)" % (total, dict(out["failed"])))
-    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "ambiguous", "not_rescued",
+    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_blank_lines", "ambiguous", "not_rescued",
              "unknown", "no_old_string", "as_is_matches"]
     for v in order:
         n = sum(out[v].values())
         if n:
             print("  %-20s %4d (%3.0f%%)  %s" % (v, n, 100 * n / max(total, 1), dict(out[v])))
-    rescued = sum(sum(out[v].values()) for v in order[:3])
+    rescued = sum(sum(out[v].values()) for v in order[:4])
     judged = total - sum(out["unknown"].values()) - sum(out["no_old_string"].values())
     print("rescued %d of %d judged failed edits (%.0f%%); unknown = file drifted or not in snapshot"
           % (rescued, judged, 100 * rescued / max(judged, 1)))
     if out["why_not"]:
         print("not rescued, closest reason:", dict(out["why_not"].most_common()))
+        print("not rescued, in-order match allowing up to 3 skipped code lines (diagnostic, not applied):",
+              dict(out["with_gaps"]))
     if missing_snap:
         print("no snapshot for:", " ".join(sorted(missing_snap)))
     for tag, fp, o in examples:
