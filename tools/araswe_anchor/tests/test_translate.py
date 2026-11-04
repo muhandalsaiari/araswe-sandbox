@@ -59,6 +59,12 @@ class MaskTests(unittest.TestCase):
             self.assertNotIn("Bug", text)  # prose really was replaced
             self.assertEqual(T.code_terms(text), T.code_terms(ISSUE))
 
+    def test_issue_reference_is_masked(self):
+        masked, parts = T.mask("cf Discussion #14265, and see &#123; too")
+        self.assertIn("#14265", parts)
+        self.assertNotIn("#14265", masked)
+        self.assertIn("&#123;", masked)  # an HTML entity is not an issue reference
+
     def test_dropped_placeholder_is_caught(self):
         masked, parts = T.mask(ISSUE)
         broken = masked.replace("[[C1]]", "", 1)

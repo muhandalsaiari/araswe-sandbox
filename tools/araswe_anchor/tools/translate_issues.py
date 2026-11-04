@@ -49,6 +49,7 @@ MASKS = [
     re.compile(r"(?<![A-Za-z0-9_/.\-])(?:[A-Za-z0-9_.\-]+/)*[A-Za-z0-9_\-]+\.(?:py|toml|cfg|ini|txt|json|ya?ml|md)\b", A),
     re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+(?:\(\))?", A),  # dotted name
     re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\(\)", A),                          # call like foo()
+    re.compile(r"(?<![\w&])#\d+\b", A),                                      # issue / PR reference like #14265
 ]
 IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b", A)
 PH = "[[C%d]]"
