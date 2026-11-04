@@ -130,9 +130,12 @@ def api(base, key, path, payload=None, timeout=600):
         return json.loads(r.read().decode())
 
 
-def chat(base, key, model, system, user, max_tokens):
+def chat(base, key, model, system, user, max_tokens, thinking=False):
     payload = {"model": model, "temperature": 0, "max_tokens": max_tokens, "stream": False,
                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+    if not thinking:
+        # DeepSeek V4 thinks by default: reasoning tokens are billed and temperature is ignored while it does.
+        payload["thinking"] = {"type": "disabled"}
     last = None
     for attempt in range(4):
         try:
@@ -162,6 +165,7 @@ def main():
     ap.add_argument("--only", help="comma-separated instance_ids")
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--max-tokens", type=int, default=8192)
+    ap.add_argument("--thinking", action="store_true", help="let the model think first (DeepSeek default; off here)")
     ap.add_argument("--list-models", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="mask and restore without calling the API (checks the masking)")
     a = ap.parse_args()
@@ -204,12 +208,13 @@ def main():
         else:
             masked, parts = src, []
             system = SYSTEM_FREE % (lang_name, lang_name)
-        meta = {"lang": a.lang, "mode": a.mode, "model": a.model, "base_url": a.base_url, "n_placeholders": len(parts)}
+        meta = {"lang": a.lang, "mode": a.mode, "model": a.model, "base_url": a.base_url, "n_placeholders": len(parts),
+                "thinking": a.thinking}
         try:
             if a.dry_run:
                 text, usage, finish = masked, {}, "dry_run"
             else:
-                text, usage, finish = chat(a.base_url, key, a.model, system, masked, a.max_tokens)
+                text, usage, finish = chat(a.base_url, key, a.model, system, masked, a.max_tokens, a.thinking)
             problems = []
             if finish not in ("stop", "dry_run"):
                 problems.append("finish_reason=%s" % finish)
