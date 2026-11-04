@@ -101,6 +101,9 @@ def main(argv):
     for d in dirs:
         out = collections.Counter()
         tdir = os.path.join(d, "traces")
+        if not os.path.isdir(tdir):
+            print("%s: no traces folder (run not started or still empty)" % d)
+            continue
         for f in sorted(os.listdir(tdir)):
             scan(os.path.join(tdir, f), out, shown, show, os.path.basename(d.rstrip("/")) + "/" + f[6:-5])
         print(os.path.basename(d.rstrip("/")))
