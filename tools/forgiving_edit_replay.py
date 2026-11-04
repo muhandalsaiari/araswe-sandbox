@@ -128,7 +128,7 @@ def replay(trace_path, snap, out, examples, tag, near):
             verdict = verdict or "not_rescued"
             out[verdict][k] += 1
             if verdict == "not_rescued":
-                o = clean(old, len(STEPS))
+                o = clean(old, skill.LINES)
                 out["why_not"][closeness(o, text)] += 1
                 g = len(line_runs(o, text, gap=3))
                 out["with_gaps"]["unique" if g == 1 else "several" if g > 1 else "none"] += 1
@@ -167,13 +167,13 @@ def main(argv):
             replay(os.path.join(tdir, f), Snapshot(sp), out, examples, tag, near)
     total = sum(out["failed"].values())
     print("failed edit_file calls: %d  (by kind: %s)" % (total, dict(out["failed"])))
-    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_blank_lines", "refused_syntax", "ambiguous", "not_rescued",
+    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_json1", "rescued_json2", "rescued_blank_lines", "refused_syntax", "ambiguous", "not_rescued",
              "unknown", "no_old_string", "as_is_matches"]
     for v in order:
         n = sum(out[v].values())
         if n:
             print("  %-20s %4d (%3.0f%%)  %s" % (v, n, 100 * n / max(total, 1), dict(out[v])))
-    rescued = sum(sum(out[v].values()) for v in order[:4])
+    rescued = sum(sum(out[v].values()) for v in order[:6])
     judged = total - sum(out["unknown"].values()) - sum(out["no_old_string"].values())
     print("rescued %d of %d judged failed edits (%.0f%%); unknown = file drifted or not in snapshot"
           % (rescued, judged, 100 * rescued / max(judged, 1)))
@@ -187,7 +187,7 @@ def main(argv):
         print("no snapshot for:", " ".join(sorted(missing_snap)))
     for tag, fp, o, block in near:
         print("\nNEAR MISS %s %s  (- model's old_string after cleaning, + closest file lines; only differing lines)" % (tag, fp))
-        want = clean(o, len(STEPS) - 1).split("\n")   # cleaned, so typed \n and stray backslashes are not counted as differences
+        want = clean(o, skill.LINES).split("\n")   # cleaned, so typed \n and stray backslashes are not counted as differences
         for d in difflib.ndiff([x.strip() for x in want], [x.strip() for x in block]):
             if d[:1] in "-+":
                 print("  " + d[:2] + repr(d[2:])[:160])

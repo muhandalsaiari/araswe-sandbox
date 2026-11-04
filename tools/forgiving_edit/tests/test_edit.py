@@ -99,6 +99,19 @@ class EditTest(unittest.TestCase):
         self.assertEqual(edit.line_runs("def g():\ndef h():", SRC), [])
         self.assertEqual(len(edit.line_runs("def g():\ndef h():", SRC, gap=3)), 1)
 
+    def test_json_double_escaped_with_stray_backslashes(self):
+        # what the harness edit_file cannot undo: two JSON layers AND a backslash before each real line break
+        import json
+
+        def twice(x):
+            return json.dumps(json.dumps(x)[1:-1])[1:-1].replace("\\\\n", "\\\n")
+        old, new = twice('def f(x):\n    """Doc."""'), twice('def f(x):\n    """Better."""')
+        self.assertIn('\\\\\\"', old)   # three backslashes before each quote: really two layers
+        rc, out, after = self.run_edit(old, new)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("json2", out)
+        self.assertIn('def f(x):\n    """Better."""', after)
+
     def adk_wrapper(self, repo, script_args):
         """Run edit.py the way google/adk/tools/skill_toolset.py _build_wrapper_code does: files written
         to a temp folder, chdir there, sys.argv built from a dict via repr, runpy, non-zero SystemExit

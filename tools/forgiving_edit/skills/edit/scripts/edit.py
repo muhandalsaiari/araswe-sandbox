@@ -11,6 +11,9 @@ What it does, in order, stopping at the first that finds exactly ONE place in th
   2 quotes         \\" -> "  and  \\' -> '
   3 bs_newline     + drop a backslash right before a line break
   4 literal_n      + turn a typed backslash-n into a line break (and backslash-t into a tab)
+  4b json1, json2  from the text as sent: drop a backslash before a line break, then undo one or two
+                   layers of JSON escaping (the harness edit_file tries those layers, but not with the
+                   stray backslashes)
   5 blank_lines    the cleaned lines appear in the file in order as one run, blank lines and
                    trailing spaces ignored
 The same cleaning is applied to new. Then, for a .py file, the result must still compile if the
@@ -31,11 +34,26 @@ import sys
 
 WORD = re.compile(r"\w+")
 
-STEPS = ("exact", "quotes", "bs_newline", "literal_n")
+STEPS = ("exact", "quotes", "bs_newline", "literal_n", "json1", "json2")
+LINES = STEPS.index("literal_n")   # the cleaning used for the blank-lines rule and the closest block
+JSON_ESC = re.compile(r'\\(u[0-9a-fA-F]{4}|["\\/bfnrt])')
+JSON_MAP = {'"': '"', "\\": "\\", "/": "/", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t"}
+
+
+def json_layer(text):
+    """One layer of JSON string escapes undone, as the harness edit_file's own unescape step does."""
+    return JSON_ESC.sub(lambda m: chr(int(m.group(1)[1:], 16)) if m.group(1)[0] == "u" else JSON_MAP[m.group(1)], text)
 
 
 def clean(text, upto):
-    """Cumulative cleaning; upto is an index into STEPS (0 = unchanged)."""
+    """upto is an index into STEPS (0 = unchanged). Steps 1-3 are cumulative. Steps 4-5 (json1, json2) start
+    again from the text as sent: drop a backslash before a line break, then undo one or two JSON layers (the
+    harness edit_file already tries those layers alone; this adds them on top of the stray backslashes)."""
+    if upto >= 4:
+        text = text.replace("\\\n", "\n")
+        for _ in range(upto - 3):
+            text = json_layer(text)
+        return text
     if upto >= 1:
         text = text.replace('\\"', '"').replace("\\'", "'")
     if upto >= 2:
@@ -93,7 +111,7 @@ def find(text, old, new):
                 places.append(text[:p].count("\n") + 1)
                 start = p + 1
             return how, None, places
-    o, nw = clean(old, len(STEPS) - 1), clean(new, len(STEPS) - 1)
+    o, nw = clean(old, LINES), clean(new, LINES)
     spans = line_runs(o, text)
     if len(spans) == 1:
         lines = text.split("\n")
@@ -104,11 +122,11 @@ def find(text, old, new):
     return None, None, []
 
 
-def closest_block(old, text, pad=2):
+def closest_block(old, text, pad=2, top=8):
     """The file window most like old, as (first_line_1based, lines, score). Windows are ranked by shared
     words (fast), then the best few by character similarity, so stale or half-remembered text still
     lands on the right place."""
-    o = clean(old, len(STEPS) - 1)
+    o = clean(old, LINES)
     want = [x for x in o.split("\n") if x.strip()] or [o]
     have = text.split("\n")
     n = max(len(want), 1)
@@ -125,7 +143,7 @@ def closest_block(old, text, pad=2):
     ranked.sort(reverse=True)
     best, best_i = 0.0, (ranked[0][1] if ranked else 0)
     target = "\n".join(x.strip() for x in want)
-    for _, i in ranked[:8]:
+    for _, i in ranked[:top]:
         win = "\n".join(x.strip() for x in have[i:i + n] if x.strip())
         score = difflib.SequenceMatcher(None, target, win, autojunk=False).ratio()
         if score > best:
