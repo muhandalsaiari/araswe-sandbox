@@ -186,8 +186,8 @@ def main(argv):
     if missing_snap:
         print("no snapshot for:", " ".join(sorted(missing_snap)))
     for tag, fp, o, block in near:
-        print("\nNEAR MISS %s %s  (- model's old_string as sent, + closest file lines; only differing lines)" % (tag, fp))
-        want = o.split("\n")
+        print("\nNEAR MISS %s %s  (- model's old_string after cleaning, + closest file lines; only differing lines)" % (tag, fp))
+        want = clean(o, len(STEPS) - 1).split("\n")   # cleaned, so typed \n and stray backslashes are not counted as differences
         for d in difflib.ndiff([x.strip() for x in want], [x.strip() for x in block]):
             if d[:1] in "-+":
                 print("  " + d[:2] + repr(d[2:])[:160])
