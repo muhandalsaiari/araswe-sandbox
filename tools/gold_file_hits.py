@@ -12,6 +12,14 @@ import os
 import re
 import sys
 
+
+def is_error(content):
+    """A tool call failed. Two shapes: the tool's own error ({"status": "error", ...}) and the
+    framework rejecting the call before it ran ({"error": "Invoking `edit_file()` failed as the
+    following mandatory input parameters are not present: ..."}). Checking only the first counted
+    214 rejected edit_file calls as successes (2026-11-04)."""
+    return '"status": "error"' in content or content.lstrip().startswith('{"error"')
+
 PREFIXES = ("./", "/workspace/", "/testbed/", "/repo/")
 
 
@@ -49,7 +57,7 @@ def main(argv):
             steps = json.load(open(os.path.join(d, "traces", f)))["steps"]
             opened = edited = False
             for s in steps:
-                failed = '"status": "error"' in str((s.get("observation") or {}).get("content", ""))
+                failed = is_error(str((s.get("observation") or {}).get("content", "")))
                 for c in s.get("tool_calls") or []:
                     a = c.get("arguments") or {}
                     name = c.get("function_name")

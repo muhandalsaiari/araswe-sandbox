@@ -12,6 +12,14 @@ import os
 import sys
 
 
+def is_error(content):
+    """A tool call failed. Two shapes: the tool's own error ({"status": "error", ...}) and the
+    framework rejecting the call before it ran ({"error": "Invoking `edit_file()` failed as the
+    following mandatory input parameters are not present: ..."}). Checking only the first counted
+    214 rejected edit_file calls as successes (2026-11-04)."""
+    return '"status": "error"' in content or content.lstrip().startswith('{"error"')
+
+
 def scan(path):
     steps = json.load(open(path))["steps"]
     best = cur = 0
@@ -26,7 +34,7 @@ def scan(path):
             best = max(best, cur)
             if c.get("function_name") == "edit_file":
                 edits += 1
-                edit_fail += '"status": "error"' in content
+                edit_fail += is_error(content)
     return best, edits, edit_fail
 
 
