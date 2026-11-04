@@ -108,6 +108,9 @@ SYSTEM_MIX = ("You translate GitHub issues from English into %s. The text contai
               "with Latin letters and digits, exactly once, where it belongs in the translated sentence. Translate "
               "everything else, including headings and list items, the way a native %s-speaking software developer "
               "would write it. Keep the Markdown structure and line breaks. Output only the translation.")
+REPAIRS = 2
+REPAIR_MSG = ("Your translation has placeholder errors: %s. The text must contain each placeholder from [[C0]] to [[C%d]] "
+              "exactly once, written exactly as in the original. Output the corrected full translation only.")
 SYSTEM_FREE = ("Translate this GitHub issue from English into %s, the way a native %s-speaking software developer "
                "would write it. Keep the Markdown structure. Output only the translation.")
 
@@ -130,9 +133,12 @@ def api(base, key, path, payload=None, timeout=600):
         return json.loads(r.read().decode())
 
 
-def chat(base, key, model, system, user, max_tokens, thinking=False):
-    payload = {"model": model, "temperature": 0, "max_tokens": max_tokens, "stream": False,
-               "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+def chat(base, key, model, system, user, max_tokens, thinking=False, history=()):
+    """history: extra (assistant, user) turns appended after the first user message (placeholder repair)."""
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    for prev, fix in history:
+        msgs += [{"role": "assistant", "content": prev}, {"role": "user", "content": fix}]
+    payload = {"model": model, "temperature": 0, "max_tokens": max_tokens, "stream": False, "messages": msgs}
     if not thinking:
         # DeepSeek V4 thinks by default: reasoning tokens are billed and temperature is ignored while it does.
         payload["thinking"] = {"type": "disabled"}
@@ -211,16 +217,27 @@ def main():
         meta = {"lang": a.lang, "mode": a.mode, "model": a.model, "base_url": a.base_url, "n_placeholders": len(parts),
                 "thinking": a.thinking}
         try:
-            if a.dry_run:
-                text, usage, finish = masked, {}, "dry_run"
-            else:
-                text, usage, finish = chat(a.base_url, key, a.model, system, masked, a.max_tokens, a.thinking)
-            problems = []
-            if finish not in ("stop", "dry_run"):
-                problems.append("finish_reason=%s" % finish)
-            if a.mode == "mix":
-                text, more = restore(text, parts)
-                problems += more
+            history, usage = [], {}
+            for attempt in range(1 + REPAIRS):
+                if a.dry_run:
+                    raw, u, finish = masked, {}, "dry_run"
+                else:
+                    raw, u, finish = chat(a.base_url, key, a.model, system, masked, a.max_tokens, a.thinking, history)
+                for k, v in u.items():
+                    if isinstance(v, int):
+                        usage[k] = usage.get(k, 0) + v
+                problems = []
+                if finish not in ("stop", "dry_run"):
+                    problems.append("finish_reason=%s" % finish)
+                text = raw
+                if a.mode == "mix":
+                    text, more = restore(raw, parts)
+                    problems += more
+                if not (a.mode == "mix" and more) or a.dry_run:
+                    break
+                # tell the model exactly what went wrong and let it correct its own translation
+                history.append((raw, REPAIR_MSG % ("; ".join(more), len(parts) - 1)))
+            meta["attempts"] = attempt + 1
             if not text.strip():
                 problems.append("empty translation")
             t0, t1 = code_terms(src), code_terms(text)

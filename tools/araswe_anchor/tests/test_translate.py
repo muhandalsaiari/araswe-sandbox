@@ -74,5 +74,40 @@ class MaskTests(unittest.TestCase):
         self.assertNotIn("%", T.SYSTEM_MIX % ("Arabic", "Arabic"))
 
 
+class RepairTest(unittest.TestCase):
+    """A translator that drops a placeholder first and fixes it when told."""
+
+    def test_repair_turn(self):
+        import json, os, tempfile
+        calls = []
+
+        def fake_chat(base, key, model, system, user, max_tokens, thinking=False, history=()):
+            calls.append(list(history))
+            out = fake_translate(user)
+            if not history:
+                out = out.replace("[[C1]]", "", 1)
+            return out, {"prompt_tokens": 10, "completion_tokens": 5}, "stop"
+
+        with tempfile.TemporaryDirectory() as d:
+            tasks = os.path.join(d, "tasks.jsonl")
+            with open(tasks, "w") as fh:
+                fh.write(json.dumps({"instance_id": "x_1", "repo": "r", "problem_statement": ISSUE}) + "\n")
+            orig, T.chat = T.chat, fake_chat
+            argv = sys.argv
+            try:
+                sys.argv = ["t", "--tasks", tasks, "--out", d, "--model", "m", "--workers", "1"]
+                os.environ["DEEPSEEK_API_KEY"] = "test"
+                T.main()
+            finally:
+                T.chat, sys.argv = orig, argv
+                os.environ.pop("DEEPSEEK_API_KEY", None)
+            rows = [json.loads(l) for l in open(os.path.join(d, "ar_mix_tasks.jsonl"))]
+        self.assertEqual(len(calls), 2)
+        self.assertIn("missing placeholders [1]", calls[1][0][1])
+        self.assertEqual(rows[0]["_meta"]["attempts"], 2)
+        self.assertEqual(rows[0]["_meta"]["usage"]["prompt_tokens"], 20)
+        self.assertIn("`jsonable_encoder`", rows[0]["problem_statement"])
+
+
 if __name__ == "__main__":
     unittest.main()
