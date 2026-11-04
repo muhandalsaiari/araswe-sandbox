@@ -183,8 +183,8 @@ def load_repo(root, skip_dirs=SKIP_DIRS):
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in skip_dirs and not d.startswith("."))
         for fn in sorted(filenames):
-            if not fn.endswith(".py"):
-                continue
+            if not fn.endswith(".py") or fn.startswith("."):
+                continue  # hidden files include the harness's own copy of this script (.adk_exec_*.py)
             full = os.path.join(dirpath, fn)
             rel = os.path.relpath(full, root).replace(os.sep, "/")
             try:

@@ -35,6 +35,7 @@ REPO = {
     "mypkg/utils.py": "def helper():\n    return 1\n",
     "tests/test_encoders.py": "from mypkg.encoders import jsonable_encoder\n",
     "docs_src/tutorial.py": "jsonable_encoder = None\n",
+    ".adk_exec_0000.py": "APIRoute jsonable_encoder APIRoute jsonable_encoder\n",  # the harness's copy of the script
 }
 
 ISSUE_EN = """When I call `jsonable_encoder` with `exclude_none=True` the result still contains None values.
@@ -156,6 +157,10 @@ class AnchorTests(unittest.TestCase):
         # A capitalised name with no underscore is dropped from prose but kept in a query.
         res = anchor.analyze(anchor.query_to_text("APIRoute"), root=str(self.root))
         self.assertEqual(res["files"][0][1], "mypkg/routing.py")
+
+    def test_hidden_files_skipped(self):
+        res = anchor.analyze(anchor.query_to_text("APIRoute jsonable_encoder"), root=str(self.root))
+        self.assertFalse(any(rel.startswith(".") for _s, rel in res["files"]))
 
     def test_query_unknown_names(self):
         res = anchor.analyze(anchor.query_to_text("NoSuchThing other_missing"), root=str(self.root))
