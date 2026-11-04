@@ -12,6 +12,10 @@ words are never used, so an issue and its translation give the same output
 as long as the code parts are kept verbatim.
 
 Usage (inside the sandbox, repository at /workspace):
+    python3 anchor.py --query "Router.__init__ on_startup fastapi/routing.py"
+        (what run_skill_script sends for a dict argument with key query; the
+        model copies only the code names from the issue, so no prose and no
+        brackets reach the tool-call parser)
     python3 anchor.py "<full issue text>"
     python3 anchor.py --issue-file /tmp/issue.txt
     echo "<issue>" | python3 anchor.py
@@ -337,8 +341,31 @@ def format_report(result, k=8, nfiles=5):
     return "\n".join(out)
 
 
+QUERY_STRIP = "[](){}<>`'\",;:"
+
+
+def query_to_text(query):
+    """Turn a model-written list of code names into issue-like text.
+
+    In query mode the model passes only the code parts it copied from the issue
+    (names, dotted names, .py paths), separated by spaces. Each one is treated as
+    if the issue had marked it as code, so plain-looking names such as Router
+    count too. Brackets, quotes and backticks are stripped first.
+    """
+    out = []
+    for tok in query.split():
+        tok = tok.strip(QUERY_STRIP)
+        if not tok:
+            continue
+        if tok.endswith(".py") or "/" in tok:
+            out.append(tok)  # a path: matched against file names
+        else:
+            out.append("`%s`" % tok)  # a name: counts like a code span
+    return "\n".join(out)
+
+
 def main(argv):
-    root, k, nfiles, issue_file, rest = None, 8, 5, None, []
+    root, k, nfiles, issue_file, rest, query = None, 8, 5, None, [], None
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -350,13 +377,19 @@ def main(argv):
             nfiles = int(argv[i + 1]); i += 2
         elif a == "--issue-file" and i + 1 < len(argv):
             issue_file = argv[i + 1]; i += 2
+        elif a == "--query" and i + 1 < len(argv):
+            query = argv[i + 1]; i += 2
+        elif a.startswith("--"):
+            i += 1  # unknown key from a dict argument: ignore the key, keep its value
         else:
             rest.append(a); i += 1
     if root is None:
         root = "/workspace" if os.path.isdir("/workspace") else os.getcwd()
     if issue_file is None and len(rest) == 1 and os.path.isfile(rest[0]):
         issue_file = rest[0]
-    if issue_file:
+    if query is not None:
+        text = query_to_text(query)
+    elif issue_file:
         with open(issue_file, encoding="utf-8", errors="ignore") as fh:
             text = fh.read()
     elif rest:
@@ -364,7 +397,7 @@ def main(argv):
     else:
         text = sys.stdin.read()
     if not text.strip():
-        print("NO_ANCHOR: empty issue text. Pass the full issue text as the argument.")
+        print("NO_ANCHOR: empty query. Pass the code names from the issue as the query.")
         return 0
     print(format_report(analyze(text, root=root), k=k, nfiles=nfiles))
     return 0

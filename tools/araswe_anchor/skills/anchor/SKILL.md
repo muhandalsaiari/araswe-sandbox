@@ -1,6 +1,6 @@
 ---
 name: anchor
-description: Finds where in the repository the issue points, before any searching. Pulls code identifiers, file paths and traceback frames out of the issue text (in any language) and resolves them to definitions as path:line. Deterministic, no model call, about one second.
+description: Finds where in the repository the issue points, before any searching. Give it the code names from the issue (function, class and variable names, dotted names, file paths) and it resolves them to definitions as path:line. Deterministic, no model call, about one second.
 ---
 
 # anchor
@@ -9,13 +9,17 @@ Use this FIRST, before grep, read_file or any other search.
 
 ## How to run
 
-Run the script scripts/anchor.py of this skill and pass it the full issue text exactly as you received it: all of it, in its original language, including code blocks and tracebacks. Do not summarize or translate it.
+Call run_skill_script with skill_name set to anchor, file_path set to scripts/anchor.py, and args set to a dict with one key, query. The query is one plain string.
+
+Put in the query every code name you can see in the issue, copied exactly, separated by spaces: function and class names, dotted names such as Router.add_api_route, exception names, file paths ending in .py, and the function names from any traceback lines. Copy them letter for letter, whatever language the rest of the issue is in. Leave out ordinary words, brackets, quotes and backticks.
+
+Example query: APIRoute.get_route_handler jsonable_encoder exclude_none fastapi/routing.py
 
 ## What it prints
 
-- ANCHORS: lines of the form symbol -> path:line, most specific first. Each line says where the evidence came from (traceback frame, file named in issue, code span, dotted name, code block, identifier).
+- ANCHORS: lines of the form symbol -> path:line, most specific first, each saying where the evidence came from.
 - FILES: the files most likely to need the change, best first.
-- NO_ANCHOR: the issue names no code that exists in this repository.
+- NO_ANCHOR: none of the names exist in this repository.
 
 ## What to do with it
 

@@ -142,6 +142,25 @@ class AnchorTests(unittest.TestCase):
         finally:
             os.unlink(fh.name)
 
+    def test_query_mode_cli(self):
+        # What run_skill_script sends for a dict argument with key query.
+        out = subprocess.run(
+            [sys.executable, "-I", str(SCRIPT), "--root", str(self.root),
+             "--query", "[`APIRoute`, jsonable_encoder(), mypkg/routing.py]"],
+            capture_output=True, text=True, timeout=30).stdout
+        self.assertIn("APIRoute -> mypkg/routing.py:4", out)
+        self.assertIn("jsonable_encoder -> mypkg/encoders.py:4", out)
+        self.assertNotIn("NO_ANCHOR", out)
+
+    def test_query_plain_name_counts(self):
+        # A capitalised name with no underscore is dropped from prose but kept in a query.
+        res = anchor.analyze(anchor.query_to_text("APIRoute"), root=str(self.root))
+        self.assertEqual(res["files"][0][1], "mypkg/routing.py")
+
+    def test_query_unknown_names(self):
+        res = anchor.analyze(anchor.query_to_text("NoSuchThing other_missing"), root=str(self.root))
+        self.assertTrue(res["blind"])
+
     def test_skill_md_is_brace_free(self):
         text = (SCRIPT.parent.parent / "SKILL.md").read_text(encoding="utf-8")
         self.assertNotIn("{", text)
