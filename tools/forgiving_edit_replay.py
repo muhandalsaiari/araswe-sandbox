@@ -29,44 +29,10 @@ import tarfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from edit_fail_kinds import is_error, kind  # noqa: E402
 
-STEPS = ("quotes", "bs_newline", "literal_n")
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "forgiving_edit", "skills", "edit", "scripts"))
+import edit as skill  # noqa: E402  the skill's own matching code, so this replay measures exactly what it does
 
-
-def clean(text, upto):
-    if upto >= 1:
-        text = text.replace('\\"', '"').replace("\\'", "'")
-    if upto >= 2:
-        text = text.replace("\\\n", "\n")
-    if upto >= 3:
-        text = text.replace("\\n", "\n").replace("\\t", "\t")
-    return text
-
-
-def line_runs(o, text, gap=0):
-    """Spans (first, last file line) where o's non-blank lines appear in order, comparing with trailing
-    spaces dropped and skipping blank file lines. gap = how many NON-blank file lines may be skipped in
-    total; gap > 0 is a diagnostic only (applying it would delete the skipped lines)."""
-    want = [x.rstrip() for x in o.split("\n") if x.strip()]
-    have = text.split("\n")
-    if not want:
-        return []
-    spans = []
-    for i, line in enumerate(have):
-        if line.rstrip() != want[0]:
-            continue
-        j, k, skipped = i + 1, 1, 0
-        while k < len(want) and j < len(have):
-            h = have[j].rstrip()
-            if h == want[k]:
-                k += 1
-            elif h.strip() and skipped < gap:
-                skipped += 1
-            elif h.strip():
-                break
-            j += 1
-        if k == len(want):
-            spans.append((i, j - 1))
-    return spans
+clean, line_runs, STEPS = skill.clean, skill.line_runs, skill.STEPS
 
 
 def closeness(o, text):
@@ -142,32 +108,20 @@ def replay(trace_path, snap, out, examples, tag):
             if fp in drifted or fp not in files:
                 out["unknown"][k] += 1
                 continue
-            text, verdict = files[fp], None
+            text = files[fp]
             if text.count(old) == 1:
                 verdict = "as_is_matches"   # the real tool said no; flag, should not happen
-            tried = {old}
-            for i, step in enumerate(STEPS, 1):
-                if verdict:
-                    break
-                o = clean(old, i)
-                if o in tried:
-                    continue
-                tried.add(o)
-                n = text.count(o)
-                if n == 1:
-                    verdict = "rescued_" + step
-                    files[fp] = text.replace(o, clean(new, i), 1)
-                elif n > 1:
-                    verdict = "ambiguous"
-            if not verdict:   # rule (a): same non-blank lines, in order, blank lines ignored
-                o, nw = clean(old, len(STEPS)), clean(new, len(STEPS))
-                spans = line_runs(o, text, gap=0)
-                if len(spans) == 1:
-                    verdict = "rescued_blank_lines"
-                    lines = text.split("\n")
-                    s, e = spans[0]
-                    files[fp] = "\n".join(lines[:s] + nw.split("\n") + lines[e + 1:])
-                elif len(spans) > 1:
+            else:
+                how, after, places = skill.find(text, old, new)
+                verdict = None
+                if after is not None:
+                    ok_before = not fp.endswith(".py") or skill.compiles(text, fp)[0]
+                    if ok_before and fp.endswith(".py") and not skill.compiles(after, fp)[0]:
+                        verdict = "refused_syntax"
+                    else:
+                        verdict = "rescued_" + how
+                        files[fp] = after
+                elif places:
                     verdict = "ambiguous"
             verdict = verdict or "not_rescued"
             out[verdict][k] += 1
@@ -176,6 +130,8 @@ def replay(trace_path, snap, out, examples, tag):
                 out["why_not"][closeness(o, text)] += 1
                 g = len(line_runs(o, text, gap=3))
                 out["with_gaps"]["unique" if g == 1 else "several" if g > 1 else "none"] += 1
+                sc = skill.closest_block(old, text)[2]   # what rule (b) would show the model
+                out["closest_score"][">=0.9" if sc >= 0.9 else "0.7-0.9" if sc >= 0.7 else "<0.7"] += 1
                 if len(examples) < 3:
                     examples.append((tag, fp, old[:200]))
 
@@ -204,7 +160,7 @@ def main(argv):
             replay(os.path.join(tdir, f), Snapshot(sp), out, examples, tag)
     total = sum(out["failed"].values())
     print("failed edit_file calls: %d  (by kind: %s)" % (total, dict(out["failed"])))
-    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_blank_lines", "ambiguous", "not_rescued",
+    order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_blank_lines", "refused_syntax", "ambiguous", "not_rescued",
              "unknown", "no_old_string", "as_is_matches"]
     for v in order:
         n = sum(out[v].values())
@@ -218,6 +174,8 @@ def main(argv):
         print("not rescued, closest reason:", dict(out["why_not"].most_common()))
         print("not rescued, in-order match allowing up to 3 skipped code lines (diagnostic, not applied):",
               dict(out["with_gaps"]))
+        print("not rescued, similarity of the closest block the skill would show (1.0 = identical):",
+              dict(out["closest_score"]))
     if missing_snap:
         print("no snapshot for:", " ".join(sorted(missing_snap)))
     for tag, fp, o in examples:
