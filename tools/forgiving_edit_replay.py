@@ -40,6 +40,25 @@ def clean(text, upto):
     return text
 
 
+def closeness(o, text):
+    """Why a fully cleaned old_string still does not match: compare line by line with the file.
+    ws_trailing  matches once trailing spaces are ignored on every line
+    ws_indent    matches once all leading/trailing spaces are ignored
+    lines_all    every line exists in the file, but not as one block (wrong order, gaps, stale)
+    lines_most   >= half the lines exist in the file
+    lines_few    < half: text the file does not have (invented, or from another file)"""
+    def norm(s, f):
+        return "\n".join(f(x) for x in s.split("\n"))
+    if norm(text, str.rstrip).count(norm(o, str.rstrip)) == 1:
+        return "ws_trailing"
+    if norm(text, str.strip).count(norm(o, str.strip)) == 1:
+        return "ws_indent"
+    have = {x.strip() for x in text.split("\n")}
+    lines = [x.strip() for x in o.split("\n") if x.strip()]
+    hit = sum(x in have for x in lines) / max(len(lines), 1)
+    return "lines_all" if hit == 1 else "lines_most" if hit >= 0.5 else "lines_few"
+
+
 class Snapshot:
     def __init__(self, path):
         self.tf = tarfile.open(path) if os.path.exists(path) else None
@@ -113,8 +132,10 @@ def replay(trace_path, snap, out, examples, tag):
                     verdict = "ambiguous"
             verdict = verdict or "not_rescued"
             out[verdict][k] += 1
-            if verdict == "not_rescued" and len(examples) < 3:
-                examples.append((tag, fp, old[:200]))
+            if verdict == "not_rescued":
+                out["why_not"][closeness(clean(old, len(STEPS)), text)] += 1
+                if len(examples) < 3:
+                    examples.append((tag, fp, old[:200]))
 
 
 def main(argv):
@@ -151,6 +172,8 @@ def main(argv):
     judged = total - sum(out["unknown"].values()) - sum(out["no_old_string"].values())
     print("rescued %d of %d judged failed edits (%.0f%%); unknown = file drifted or not in snapshot"
           % (rescued, judged, 100 * rescued / max(judged, 1)))
+    if out["why_not"]:
+        print("not rescued, closest reason:", dict(out["why_not"].most_common()))
     if missing_snap:
         print("no snapshot for:", " ".join(sorted(missing_snap)))
     for tag, fp, o in examples:
