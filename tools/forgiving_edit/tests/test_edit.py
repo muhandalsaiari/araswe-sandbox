@@ -99,6 +99,58 @@ class EditTest(unittest.TestCase):
         self.assertEqual(edit.line_runs("def g():\ndef h():", SRC), [])
         self.assertEqual(len(edit.line_runs("def g():\ndef h():", SRC, gap=3)), 1)
 
+    def adk_wrapper(self, repo, script_args):
+        """Run edit.py the way google/adk/tools/skill_toolset.py _build_wrapper_code does: files written
+        to a temp folder, chdir there, sys.argv built from a dict via repr, runpy, non-zero SystemExit
+        re-raised. Run in a child python so chdir and argv do not leak into this process."""
+        import subprocess
+        src = open(os.path.join(HERE, "..", "skills", "edit", "scripts", "edit.py")).read()
+        argv = ["scripts/edit.py"]
+        for k, v in script_args.items():
+            argv.extend(["--%s" % k, str(v)])
+        code = "\n".join([
+            "import os, sys, tempfile, runpy",
+            "_files = %r" % {"scripts/edit.py": src},
+            "def _run():",
+            "  o = os.getcwd()",
+            "  with tempfile.TemporaryDirectory() as td:",
+            "    for rel, c in _files.items():",
+            "      fp = os.path.join(td, rel); os.makedirs(os.path.dirname(fp), exist_ok=True)",
+            "      open(fp, 'w').write(c)",
+            "    os.chdir(td)",
+            "    try:",
+            "      sys.argv = %r" % argv,
+            "      try:",
+            "        runpy.run_path('scripts/edit.py', run_name='__main__')",
+            "      except SystemExit as e:",
+            "        if e.code is not None and e.code != 0:",
+            "          raise e",
+            "    finally:",
+            "      os.chdir(o)",
+            "_run()"])
+        env = dict(os.environ, PWD=repo)
+        return subprocess.run([sys.executable, "-I", "-c", code], cwd=repo, env=env, capture_output=True, text=True)
+
+    def test_adk_wrapper_multiline_quotes(self):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "m.py"), "w") as fh:
+            fh.write(SRC)
+        r = self.adk_wrapper(d, {"filepath": "m.py", "old_string": 'def f(x):\n    """Doc."""\n    msg = f"bad {x!r}"',
+                                 "new_string": 'def f(x):\n    """Doc."""\n    msg = f\'it\\\'s "bad" {x!r}\''})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("EDITED m.py at line 1", r.stdout)
+        with open(os.path.join(d, "m.py")) as fh:
+            self.assertIn("""    msg = f'it\\'s "bad" {x!r}'""", fh.read())
+
+    def test_adk_wrapper_not_edited_is_not_an_error(self):
+        d = tempfile.mkdtemp()
+        with open(os.path.join(d, "m.py"), "w") as fh:
+            fh.write(SRC)
+        r = self.adk_wrapper(d, {"filepath": "m.py", "old_string": "def g():\n    return 7", "new_string": "x"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("NOT EDITED", r.stdout)
+        self.assertIn("|     return 1", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

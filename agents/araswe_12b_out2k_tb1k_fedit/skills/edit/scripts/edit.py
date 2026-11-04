@@ -20,7 +20,8 @@ is printed with line numbers, so the next call can copy it exactly.
 
 Usage (inside the sandbox, repository at /workspace), as run_skill_script sends a dict argument:
     python3 edit.py --filepath fastapi/routing.py --old_string "..." --new_string "..."
-Options: --root DIR (default /workspace if present, else cwd), --dry_run 1 (report only).
+Options: --root DIR (default: the first of /workspace, $PWD, /testbed, /repo, cwd that holds the file),
+--dry_run 1 (report only). Always exits 0; the first word of the output is the outcome.
 """
 import collections
 import difflib
@@ -141,6 +142,19 @@ def compiles(src, name):
         return False, "line %s: %s" % (e.lineno, e.msg)
 
 
+def find_root(given, fp):
+    """The repository folder. run_skill_script runs this script inside its own temporary folder (it
+    chdirs there first), so the current folder is NOT the repository. Take the first candidate that
+    holds fp: --root, /workspace, $PWD (chdir does not change it), /testbed, /repo, the current folder."""
+    cands = [given] if given else []
+    cands += ["/workspace", os.environ.get("PWD"), "/testbed", "/repo", os.getcwd()]
+    cands = [c for c in cands if c and os.path.isdir(c)]
+    for c in cands:
+        if fp and os.path.isfile(fp if os.path.isabs(fp) else os.path.join(c, fp)):
+            return c
+    return cands[0] if cands else os.getcwd()
+
+
 def main(argv):
     opts, i = {}, 0
     while i < len(argv):
@@ -149,8 +163,8 @@ def main(argv):
             opts[a[2:]] = argv[i + 1]; i += 2
         else:
             i += 1
-    root = opts.get("root") or ("/workspace" if os.path.isdir("/workspace") else os.getcwd())
     fp = (opts.get("filepath") or opts.get("file_path") or opts.get("path") or "").strip()
+    root = find_root(opts.get("root"), fp)
     old = opts.get("old_string", opts.get("old"))
     new = opts.get("new_string", opts.get("new", ""))
     if not fp or old is None:
@@ -197,4 +211,7 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    # Always exit 0: run_skill_script runs this with runpy and re-raises a non-zero SystemExit, which
+    # would turn NOT EDITED (and the closest lines it prints) into a tool error. The first word of the
+    # output (EDITED / NOT EDITED / ERROR / DRY RUN) carries the outcome instead.
+    main(sys.argv[1:])
