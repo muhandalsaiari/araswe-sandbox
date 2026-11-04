@@ -131,6 +131,14 @@ def _poetry_to_pep440(spec):
 
 def _installed_version(name):
     import importlib.metadata as md
+    # araswe: swegemma 0.2.11 unpacks EVERY small wheel in WHEELS_DIR into site-packages, so a package can have many
+    # .dist-info folders but one code folder (the last unpacked). md.version() then reads an arbitrary label and the
+    # repair wrongly skips the swap. Several labels = unknown version, which forces _swap (it cleans all of them).
+    sp = find_site_packages_dir()
+    if sp is not None:
+        norm = normalize_pkg_name(name)
+        if sum(1 for di in sp.glob("*.dist-info") if normalize_pkg_name(_dist_name(di)) == norm) > 1:
+            return None
     try:
         return md.version(name)
     except md.PackageNotFoundError:

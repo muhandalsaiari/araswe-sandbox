@@ -34,7 +34,14 @@ from google.adk.apps._configs import EventsCompactionConfig
 from swegemma.config import ALLOWED_ADAPTER_EXTENSIONS, EvalConfig, build_submission_limits
 from swegemma.evaluate import Evaluator
 from swegemma.models import load_tasks
-from swegemma.models.discovery import validate_single_declared_model
+from adk_submission.discovery import discover_declared_models  # araswe: swegemma 0.2.11 removed validate_single_declared_model
+
+
+def validate_single_declared_model(agent_dir):
+    models = discover_declared_models(agent_dir)
+    if len(models) != 1:
+        raise SystemExit(f"expected exactly 1 declared model, got {sorted(models)}")
+    return next(iter(models))
 
 litellm.drop_params = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # the helpers next to this file (python -I leaves it off)
@@ -127,6 +134,8 @@ if not HOOK.exists():
 def served_model():
     """The model path the harness asks the server for: MODEL_DIR if set, else the model the running server loaded
     (its note runs/logs/current_server.json, written by serve_model.py at start), else the competition default."""
+    if os.environ.get("SERVED_MODEL_NAME"):
+        return os.environ["SERVED_MODEL_NAME"]
     if os.environ.get("MODEL_DIR"):
         return Path(os.environ["MODEL_DIR"]).resolve()
     note = Path(os.environ.get("SERVER_JSON") or ROOT / "runs" / "logs" / "current_server.json")
