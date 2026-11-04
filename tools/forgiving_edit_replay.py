@@ -21,6 +21,7 @@ once; otherwise NOT RESCUED. The rescued edit is applied, so later edits see the
 tool would have produced. Reads only.
 """
 import collections
+import difflib
 import json
 import os
 import sys
@@ -33,6 +34,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "for
 import edit as skill  # noqa: E402  the skill's own matching code, so this replay measures exactly what it does
 
 clean, line_runs, STEPS = skill.clean, skill.line_runs, skill.STEPS
+SHOW = 0   # --show-near N: print N near misses (closest block similarity >= 0.9) line by line
 
 
 def closeness(o, text):
@@ -71,7 +73,7 @@ class Snapshot:
         return self.tf.extractfile(m).read().decode("utf-8", "replace")
 
 
-def replay(trace_path, snap, out, examples, tag):
+def replay(trace_path, snap, out, examples, tag, near):
     files, drifted = {}, set()
     for s in json.load(open(trace_path))["steps"]:
         content = str((s.get("observation") or {}).get("content", ""))
@@ -130,7 +132,9 @@ def replay(trace_path, snap, out, examples, tag):
                 out["why_not"][closeness(o, text)] += 1
                 g = len(line_runs(o, text, gap=3))
                 out["with_gaps"]["unique" if g == 1 else "several" if g > 1 else "none"] += 1
-                sc = skill.closest_block(old, text)[2]   # what rule (b) would show the model
+                first, block, sc = skill.closest_block(old, text)   # what rule (b) would show the model
+                if sc >= 0.9 and len(near) < SHOW:
+                    near.append((tag, fp, old, block))
                 out["closest_score"][">=0.9" if sc >= 0.9 else "0.7-0.9" if sc >= 0.7 else "<0.7"] += 1
                 if len(examples) < 3:
                     examples.append((tag, fp, old[:200]))
@@ -141,12 +145,15 @@ def main(argv):
     while i < len(argv):
         if argv[i] == "--snapshots":
             snaps, i = argv[i + 1], i + 2
+        elif argv[i] == "--show-near":
+            global SHOW
+            SHOW, i = int(argv[i + 1]), i + 2
         elif argv[i] == "--skip":
             skip.add(argv[i + 1]); i += 2
         else:
             dirs.append(argv[i]); i += 1
     out = collections.defaultdict(collections.Counter)
-    examples, missing_snap = [], set()
+    examples, missing_snap, near = [], set(), []
     for d in dirs:
         tdir = os.path.join(d, "traces")
         for f in sorted(os.listdir(tdir)):
@@ -157,7 +164,7 @@ def main(argv):
             sp = os.path.join(snaps, task + ".tgz")
             if not os.path.exists(sp):
                 missing_snap.add(task)
-            replay(os.path.join(tdir, f), Snapshot(sp), out, examples, tag)
+            replay(os.path.join(tdir, f), Snapshot(sp), out, examples, tag, near)
     total = sum(out["failed"].values())
     print("failed edit_file calls: %d  (by kind: %s)" % (total, dict(out["failed"])))
     order = ["rescued_quotes", "rescued_bs_newline", "rescued_literal_n", "rescued_blank_lines", "refused_syntax", "ambiguous", "not_rescued",
@@ -178,6 +185,12 @@ def main(argv):
               dict(out["closest_score"]))
     if missing_snap:
         print("no snapshot for:", " ".join(sorted(missing_snap)))
+    for tag, fp, o, block in near:
+        print("\nNEAR MISS %s %s  (- model's old_string as sent, + closest file lines; only differing lines)" % (tag, fp))
+        want = o.split("\n")
+        for d in difflib.ndiff([x.strip() for x in want], [x.strip() for x in block]):
+            if d[:1] in "-+":
+                print("  " + d[:2] + repr(d[2:])[:160])
     for tag, fp, o in examples:
         print("\nNOT RESCUED %s %s\n  old_string: %r" % (tag, fp, o))
 
