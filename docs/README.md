@@ -17,6 +17,7 @@ Focus now: training only (curate SWE data, then RL). Kaggle submissions are park
 | [pass_histogram_e2b.md](pass_histogram_e2b.md) | E2B pass counts over 8 tries per task: how many tasks are in the mixed band |
 | [outside_data.md](outside_data.md) | Outside task sets and solved-run sets, the adapter we need, graph-tools A/B result, plan for the first outside run |
 | [outside_tasks_judge.md](outside_tasks_judge.md) | task-quality judge on 7,137 SWE-rebench tasks: 60.5% solvable as written, reasons, clean pool, held-out repos, repair pilot (2026-10-25) |
+| [araswe_sandbox_v2.md](araswe_sandbox_v2.md) | araswe local image v2: 4 wheels added to /wheels, gold 75 → 125/129, the 4 exclusions (2026-11-04) |
 | [code_graph_builder.md](code_graph_builder.md) | Our code-graph builder: rebuilds all 127 official graphs exactly (nodes, texts, edges) |
 | [embeddings.md](embeddings.md) | The official node embeddings: what they are, why we cannot rebuild them, what they are worth to the agent; decision: random vectors for outside repos |
 | [training_prep.md](training_prep.md) | Local training data on hand, the tools that make it, open training steps |
