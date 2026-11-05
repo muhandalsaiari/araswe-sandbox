@@ -5,12 +5,13 @@ these files are the current picture and are updated in place.
 -->
 # Gemma 4 developer agent: docs, as of 2026-10-20
 
-Focus now: training only (curate SWE data, then RL). Kaggle submissions are parked.
+Focus now: the paper until 12 Nov, then the main competition. See [roadmap.md](roadmap.md).
 
 ## Docs
 
 | file | what it holds |
 |---|---|
+| [roadmap.md](roadmap.md) | The plan for both tracks up to their deadlines: status, day by day, open problems |
 | [competition.md](competition.md) | The competition in one page: metric, scorer, allowed models, submission format, deadlines |
 | [bench_report.md](bench_report.md) | Speed tests and solve counts for every model on the RTX 5090, in plain language |
 | [measured_numbers.md](measured_numbers.md) | Output-token budgets per model, fixed run settings, where the sampling config lives, Kaggle speeds |
