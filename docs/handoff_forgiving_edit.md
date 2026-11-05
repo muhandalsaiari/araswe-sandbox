@@ -1,6 +1,20 @@
 <!-- contract: handoff note for the next session. Facts and commands only; the journal stays the source of truth. -->
 # Handoff: forgiving-edit skill (2026-11-04)
 
+## For a Claude Code desktop session on the user's machine
+- Open the folder `~/araswe/fixes`. That is this repo, checked out locally.
+  - The git remote is `mine` and the branch is `araswe`. Pull with `git pull mine araswe` and push with `git push mine araswe`.
+- You run on the machine that holds the traces, runs and envs, so run the commands below yourself. Do not ask the user to paste
+  output. Earlier cloud sessions had to work that way; you don't.
+- The local model server is Bionic (llama.cpp-based) on port 1235, with Reasoning Budget 1024. The user sets that budget in
+  the Bionic app; you cannot.
+- Follow CLAUDE.md:
+  - `tools/jgrep.sh` or `grep -a` for journal reads. The journal is binary-flagged, so plain grep prints "binary file matches".
+  - Dates from `date -u`.
+  - Append-only journal, with a PROBE line after reading the run.
+  - Banned words (rule 10).
+  - Explain to the user in plain language, one step at a time.
+
 ## Where it stands
 - The skill: `tools/forgiving_edit/` (script, SKILL.md, 13 unit tests, real-code stress test). No wrong edit in
   about 3,200 damaged edits on fastapi + requests.
@@ -16,7 +30,7 @@
 
 ## Step 1: read the run (on the user's machine)
 ```bash
-cat ~/araswe/fixes/runs/fedit_summary.txt
+cat ~/araswe/fixes/runs/fedit_summary.txt   # if missing: tail -n 20 runs/fedit_screen01.log (the run may have stopped overnight)
 ```
 ```bash
 cd ~/araswe/fixes && git pull mine araswe && python3 -I tools/paired_runs.py fedit_screen01 out2k_tb1k_screen01 out2k_tb1k_screen01_r2
