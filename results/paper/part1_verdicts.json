@@ -1,0 +1,91 @@
+{
+ "n": 115,
+ "primary": {
+  "H1": {
+   "p": 0.47312965989112854,
+   "right_way": true,
+   "note": "EN only 18, AR only 13",
+   "mean": -0.043478260869565216,
+   "lo": -0.12173913043478261,
+   "hi": 0.034782608695652174,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H2": {
+   "p": 0.296206368599087,
+   "right_way": false,
+   "note": "EN+anchor only 13, EN only 20",
+   "mean": -0.06086956521739131,
+   "lo": -0.1391304347826087,
+   "hi": 0.017391304347826087,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H3": {
+   "p": 0.756024397560244,
+   "right_way": false,
+   "note": "(EN-AR) minus (EN+anchor-AR+anchor)",
+   "mean": -0.034782608695652174,
+   "lo": -0.1391304347826087,
+   "hi": 0.06956521739130435,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H4": {
+   "p": 0.326,
+   "right_way": true,
+   "note": "AR+anchor minus AR+TF, non-inferiority",
+   "mean": -0.0782608695652174,
+   "lo": -0.1565217391304348,
+   "hi": 0.0,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  }
+ },
+ "sensitivity": {
+  "H1": {
+   "p": 0.6075913612730801,
+   "right_way": true,
+   "note": "EN only 19, AR only 15",
+   "mean": -0.034782608695652174,
+   "lo": -0.11304347826086956,
+   "hi": 0.043478260869565216,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H2": {
+   "p": 0.48685024166479707,
+   "right_way": false,
+   "note": "EN+anchor only 14, EN only 19",
+   "mean": -0.043478260869565216,
+   "lo": -0.12173913043478261,
+   "hi": 0.034782608695652174,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H3": {
+   "p": 0.7953204679532047,
+   "right_way": false,
+   "note": "(EN-AR) minus (EN+anchor-AR+anchor)",
+   "mean": -0.043478260869565216,
+   "lo": -0.14782608695652175,
+   "hi": 0.06086956521739131,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  },
+  "H4": {
+   "p": 0.326,
+   "right_way": true,
+   "note": "AR+anchor minus AR+TF, non-inferiority",
+   "mean": -0.0782608695652174,
+   "lo": -0.1565217391304348,
+   "hi": 0.0,
+   "p_holm": 1.0,
+   "verdict": "NOT SHOWN"
+  }
+ },
+ "retest": {
+  "en": "9/10",
+  "ar": "7/10"
+ }
+}
