@@ -1,3 +1,65 @@
+# Paper: Non-English Issues Hurt the Retriever, Not the Agent
+
+This branch holds the code and data for my paper-track writeup:
+**[Non-English Issues Hurt the Retriever, Not the Agent](https://www.kaggle.com/competitions/gemma-4-developer-agent-paper/writeups/new-writeup-1793778969683)**
+(Google - The Gemma 4 Developer Agent Paper Track, Kaggle, Nov 2026).
+
+Short version: I translated the public task issues into six languages and checked two things. File-ranking tools
+lose up to 10 top-3 points when the issue isn't in English, on the competition repos. A small local agent (Gemma 4 12B)
+mostly copes, and what limits it is finishing the edit within its call budget, not finding the file.
+
+The rest of this repo is a fork of the
+[nakranivaibhav repair kit](https://github.com/nakranivaibhav/gemma-4-developer-agent) plus my earlier work.
+For the paper, these are the parts that matter:
+
+| What | Where |
+|---|---|
+| Pre-registration (SHA-256 `b31d8fd9…43d7`, posted on the forum 5 Nov) and task lists | `tools/araswe_anchor/paper/` |
+| The anchor skill | `tools/araswe_anchor/skills/anchor/` |
+| Agents for the five arms | `agents/araswe_paper_base`, `agents/araswe_paper_anchor` |
+| Follow-up agents (exploratory) | `agents/araswe_anchor_v2`, `_v3`, `_v4`, `agents/araswe_bigread` |
+| Every task run, one row each | `results/task_runs.jsonl` (run ids `paper_full_*`, `bigread_en2`) |
+| Verdicts for Part 1 and Part 2 | `results/paper/part1_verdicts.json`, `results/paper/part2_verdicts.json` |
+| All agent traces from the study | `results/paper/traces_paper_full.tar.gz` |
+| Translated issues, six languages | `results/paper/translations/` |
+| Scripts behind each number | `tools/araswe_anchor/tools/` |
+| The writeup text and figures | `docs/paper/` |
+| Research log, every run and result in order | `journal.md` |
+
+## Notes on the data
+
+- **Translations** are released as translated prose with each code part replaced by a placeholder like `[[C3]]`, as
+  the host allowed. Put the code back from the competition's own `tasks.jsonl`:
+
+  ```
+  python3 tools/araswe_anchor/tools/release_translations.py restore \
+      --rel results/paper/translations/ar.jsonl --tasks <your>/tasks.jsonl --out ar_mix.jsonl
+  ```
+
+  Each issue is checked against a SHA-256. All 773 come back byte for byte (Chinese has 128, one issue failed
+  translation twice).
+- **Traces** have the issue text taken out, both in the prompt and where the agent quoted it. Extract them at the
+  repo root with `tar xzf results/paper/traces_paper_full.tar.gz`, which recreates `runs/<run id>/traces/`.
+- **SWE-bench** (Lite and the Part 2 set): only task ids and numbers are shipped, no issue text.
+
+## Rerunning the numbers
+
+Every script is standard-library Python and its docstring gives the usage. No GPU is needed for the analysis.
+
+| Paper part | Script |
+|---|---|
+| Exp A, rankers by language | `eval_localization.py`, then `paired_test.py` |
+| Signal audit | `signal_audit.py` |
+| Part 2 verdicts (S1 to S3) | `part2_read.py` |
+| Part 1 verdicts (H1 to H4) | `paper_read.py --prefix paper_full` |
+| Turns to first gold-file read | `paper_secondary.py --prefix paper_full` (needs the extracted traces) |
+
+You need the competition data (`tasks.jsonl` and the repo snapshots) from the Kaggle data page; it isn't shipped here.
+
+Translations were made with DeepSeek. Code and analysis were written with help from Claude.
+
+---
+
 # Gemma 4 Developer Agent
 
 Our working repo for the Kaggle competition
