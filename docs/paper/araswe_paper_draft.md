@@ -2,20 +2,20 @@
 
 ## Abstract
 
-Most issues in this competition are written in English, but many developers don't write in English. We translated the issue text of the public Gemma 4 dev tasks into six languages (Arabic, Chinese, Hindi, Russian, Spanish, French), keeping code, identifiers and tracebacks byte-identical, and asked two questions. First, what happens to model-free file localizers when the prose changes language? Second, does a small local agent (Gemma 4 12B, 4-bit) get worse on Arabic issues, and does an identifier-only localization skill help it? On the competition repos, a strong prose-aware ranker loses 8 to 10 top-3 points in the four non-Latin-script languages, while identifier-only rankers lose nothing. That loss did not replicate on SWE-bench Lite (296 tasks) or on a pre-registered set of 428 SWE-bench tasks, where the drop was about 1 to 2 points. In a pre-registered agent study (115 tasks × 5 arms, 575 runs), no hypothesis held. The agent lost only 4.3 points of gold-file edits on Arabic issues (interval includes zero), and every point estimate for the localization skill was negative. Trace analysis suggests that finding the file is not what limits this agent. Finishing the edit inside the call budget is.
+Most issues in this competition are written in English, but many developers don't write in English. We translated the issue text of the public Gemma 4 dev tasks into six languages (Arabic, Chinese, Hindi, Russian, Spanish, French), keeping code, identifiers and tracebacks byte-identical, and asked two questions. First, what happens to model-free file localizers when the prose changes language? Second, does a small local agent (Gemma 4 12B, 4-bit) get worse on Arabic issues, and does an identifier-only localization skill help it? On the competition repos, a strong prose-aware ranker loses 8 to 10 top-3 points in the four non-Latin-script languages, while identifier-only rankers lose nothing. That loss did not replicate on SWE-bench Lite (296 tasks) or on a pre-registered set of 428 SWE-bench tasks, where the drop was about 1 to 2 points. In a pre-registered agent study (115 tasks × 5 arms, 575 runs), no hypothesis held. The agent lost only 4.3 points of gold-file edits on Arabic issues (interval includes zero), and every point estimate for the localization skill was negative. From the traces, the agent usually finds the right file. It runs out of tool calls before it finishes the edit.
 
 ## 1. Introduction
 
 The agents in this competition run offline on small open models, and the issue text is the only thing that tells them where to look. Model-free localizers such as the public findfile notebook rank files by matching issue words against code, and on these repos they work well: 72% top-3 in English. Its own ablation shows that a large part of that comes from plain English words in the issue. Those words are exactly what disappears when the issue is written in Arabic or Hindi. Identifiers usually stay in English, because nobody translates `APIRouter`.
 
-So our starting guess was simple. Prose-based localizers should break on non-English issues, identifier-only ones should not, and giving a small agent an identifier-only "anchor" should close the gap. Part of this held and most of it didn't, and we think the parts that didn't are the more useful result.
+So our starting guess was simple. Prose-based localizers should break on non-English issues, identifier-only ones should not, and giving a small agent an identifier-only "anchor" should close the gap. Only part of this turned out to be true, and the parts that failed taught us more.
 
 What we contribute:
 
 1. Six-language variants of the 129 public task issues, with code masked during translation and restored byte-for-byte, plus an unmasked Arabic control.
 2. A cross-lingual audit of eight localizers (Exp A), with an exact reproduction of the public findfile numbers, a signal audit that splits each issue into prose and code parts, and replications on SWE-bench Lite and on a pre-registered SWE-bench set.
 3. A pre-registered agent study on Gemma 4 12B: English vs Arabic, with and without the anchor skill, plus a translate-first arm. The SHA-256 of the pre-registration was posted on the forum before any full run.
-4. An honest negative: an exploratory look at why the anchor hurt, and one follow-up prompt change (bigger reads) that also hurt.
+4. A look at why the anchor hurt, and one follow-up prompt change (bigger reads) that also hurt.
 
 ## 2. Related work
 
@@ -62,7 +62,7 @@ Invariance didn't make the anchor competitive, though. In Arabic, findfile still
 - S2, tasks where prose adds a hit lose more: HOLDS in both strata (−51.8 and −56.0 points). Before reading any number, we found that this test leans toward HOLDS by construction: prose-hit tasks are English hits, so they can only lose. An exploratory comparison of English hits only gives −46.9 and −45.9.
 - S3, issues with fewer bare identifiers lose more: NOT SHOWN.
 
-What we can say is narrow. Where the prose carries the hit, translation takes it away. How often that happens depends on the issue set, and on wider SWE-bench data it is rare enough that the average loss is 1 to 2 points.
+So the conclusion is limited. Where the prose carries the hit, translation takes it away. How often that happens depends on the issue set, and on wider SWE-bench data it is rare enough that the average loss is 1 to 2 points.
 
 ## 5. Experiment B+C: does the agent care?
 
@@ -110,7 +110,7 @@ That pointed at reading, so we tried smaller anchor displays in short smoke runs
 
 ## 7. Discussion and limitations
 
-The localization picture and the agent picture disagree, and we think that's the main point. A retriever that ranks files once from the issue text loses real accuracy when the issue language changes, on repos where the prose does the work. An agent that can grep, read and run code gets a second chance at every step, mostly through the identifiers that stay in English, and on these tasks it absorbs most of that loss. For people building offline agents for non-English users, translating the issue first or adding a localization tool are not obviously worth it at 12B. Both cost tokens and calls, and neither beat doing nothing here. The thing worth fixing is what the agent does after it finds the file.
+The retrieval results and the agent results don't agree, and that is our main finding. A retriever that ranks files once from the issue text loses real accuracy when the issue language changes, on repos where the prose does the work. An agent that can grep, read and run code gets a second chance at every step, mostly through the identifiers that stay in English, and on these tasks it absorbs most of that loss. For people building offline agents for non-English users, translating the issue first or adding a localization tool are not obviously worth it at 12B. Both cost tokens and calls, and neither beat doing nothing here. What needs fixing is what the agent does after it finds the file.
 
 Limitations, roughly in order of how much they worry us:
 
@@ -123,7 +123,7 @@ Limitations, roughly in order of how much they worry us:
 
 ## 8. Reproducibility
 
-Repository: https://github.com/muhandalsaiari/araswe-sandbox (branch `araswe`). It holds the pre-registration and task lists (`tools/araswe_anchor/paper/`), the agents for all arms (`agents/`), the per-run ledger (`results/task_runs.jsonl`), the verdict files and every agent trace from the study (`results/paper/`), and the scripts behind each number (`eval_localization.py`, `paired_test.py`, `signal_audit.py`, `part2_read.py`, `paper_read.py`, `paper_secondary.py`). As the host allowed, translations are released as prose with code placeholders, keyed by `instance_id` (`results/paper/translations/`, 773 issues; Chinese has 128 because one issue failed translation twice). `release_translations.py restore` rebuilds the full text from the competition's own `tasks.jsonl` and checks each issue against a SHA-256, and all 773 round-trip byte for byte. For SWE-bench we ship task ids and numbers only.
+Repository: [github.com/muhandalsaiari/araswe-sandbox](https://github.com/muhandalsaiari/araswe-sandbox/tree/araswe) (branch `araswe`). It holds the pre-registration and task lists (`tools/araswe_anchor/paper/`), the agents for all arms (`agents/`), the per-run ledger (`results/task_runs.jsonl`), the verdict files and every agent trace from the study (`results/paper/`), and the scripts behind each number (`eval_localization.py`, `paired_test.py`, `signal_audit.py`, `part2_read.py`, `paper_read.py`, `paper_secondary.py`). As the host allowed, translations are released as prose with code placeholders, keyed by `instance_id` (`results/paper/translations/`, 773 issues; Chinese has 128 because one issue failed translation twice). `release_translations.py restore` rebuilds the full text from the competition's own `tasks.jsonl` and checks each issue against a SHA-256, and all 773 round-trip byte for byte. For SWE-bench we ship task ids and numbers only.
 
 Translations were made with DeepSeek. Code and analysis were written with help from Claude. All experiments were designed, run and checked by the author.
 
